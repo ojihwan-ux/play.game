@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>도형 나라 만들기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gamja+Flower&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Gamja Flower', cursive;
+        }
+        #controls {
+            transition: all 0.3s ease-in-out;
+        }
+        canvas {
+            cursor: grab;
+        }
+        canvas.grabbing {
+            cursor: grabbing;
+        }
+        .prevent-select {
+            -webkit-user-select: none; /* Safari */
+            -ms-user-select: none; /* IE 10 and IE 11 */
+            user-select: none; /* Standard syntax */
+        }
+    </style>
+</head>
+<body class="bg-amber-50 min-h-screen flex flex-col items-center justify-center p-4 prevent-select">
+
+    <div class="w-full max-w-6xl mx-auto">
+        <header class="text-center mb-4">
+            <h1 class="text-4xl md:text-5xl font-bold text-emerald-600">🎨 도형 나라 만들기 🎨</h1>
+            <p class="text-lg text-gray-600 mt-2">도형을 추가하고 움직여서 멋진 나라를 만들어 보세요!</p>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-4">
+            <aside class="w-full lg:w-64 bg-white p-4 rounded-2xl shadow-lg border-2 border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">도형 추가하기</h2>
+                <div class="grid grid-cols-3 lg:grid-cols-1 gap-3">
+                    <button id="add-rect" class="w-full flex flex-col items-center p-3 bg-blue-400 text-white rounded-lg hover:bg-blue-500 transition-colors shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm11 1H4v10h10V4z" clip-rule="evenodd" /></svg>
+                        <span class="mt-1 text-lg">네모</span>
+                    </button>
+                    <button id="add-circle" class="w-full flex flex-col items-center p-3 bg-red-400 text-white rounded-lg hover:bg-red-500 transition-colors shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16z" clip-rule="evenodd" /></svg>
+                        <span class="mt-1 text-lg">동그라미</span>
+                    </button>
+                    <button id="add-triangle" class="w-full flex flex-col items-center p-3 bg-yellow-400 text-white rounded-lg hover:bg-yellow-500 transition-colors shadow-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor"><path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L10 4.414l6.293 6.293a1 1 0 001.414-1.414l-7-7z" transform="rotate(180 10 10)" /></svg>
+                        <span class="mt-1 text-lg">세모</span>
+                    </button>
+                </div>
+                <div class="mt-6">
+                    <button id="clear-canvas" class="w-full p-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors shadow-md">
+                        전부 지우기
+                    </button>
+                </div>
+            </aside>
+
+            <main class="flex-1 bg-white rounded-2xl shadow-lg overflow-hidden border-2 border-gray-200 relative">
+                <canvas id="shapeCanvas" class="w-full h-full"></canvas>
+                <div id="controls" class="absolute top-4 right-4 bg-white/80 backdrop-blur-sm p-4 rounded-2xl shadow-lg border border-gray-200 transform translate-x-full opacity-0 pointer-events-none">
+                    <h3 class="text-xl font-bold text-gray-700 mb-3 text-center">도형 바꾸기</h3>
+                    
+                    <div class="mb-3">
+                        <label for="size-slider" class="block text-gray-600 text-lg mb-1">크기</label>
+                        <input type="range" id="size-slider" min="20" max="300" class="w-full">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="color-picker" class="block text-gray-600 text-lg mb-1">색상</label>
+                        <input type="color" id="color-picker" class="w-full h-10 p-1 bg-white border border-gray-300 rounded-md cursor-pointer">
+                    </div>
+                    
+                    <button id="delete-shape" class="w-full mt-3 p-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors">
+                        도형 지우기
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('shapeCanvas');
+        const ctx = canvas.getContext('2d');
+        const controlsPanel = document.getElementById('controls');
+        const sizeSlider = document.getElementById('size-slider');
+        const colorPicker = document.getElementById('color-picker');
+
+        let shapes = [];
+        let selectedShape = null;
+        let isDragging = false;
+        let startX, startY;
+
+        function resizeCanvas() {
+            const parent = canvas.parentElement;
+            canvas.width = parent.clientWidth;
+            canvas.height = parent.clientHeight;
+            drawAllShapes();
+        }
+
+        const colorPalette = ['#60a5fa', '#f87171', '#facc15', '#4ade80', '#c084fc', '#fb923c'];
+        function getRandomColor() {
+            return colorPalette[Math.floor(Math.random() * colorPalette.length)];
+        }
+        
+        function drawRect(shape) {
+            ctx.fillStyle = shape.color;
+            ctx.fillRect(shape.x - shape.size / 2, shape.y - shape.size / 2, shape.size, shape.size);
+        }
+
+        function drawCircle(shape) {
+            ctx.fillStyle = shape.color;
+            ctx.beginPath();
+            ctx.arc(shape.x, shape.y, shape.radius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawTriangle(shape) {
+            ctx.fillStyle = shape.color;
+            ctx.beginPath();
+            const height = shape.size * (Math.sqrt(3) / 2);
+            ctx.moveTo(shape.x, shape.y - height / 2);
+            ctx.lineTo(shape.x - shape.size / 2, shape.y + height / 2);
+            ctx.lineTo(shape.x + shape.size / 2, shape.y + height / 2);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawSelectionBorder(shape) {
+            ctx.strokeStyle = '#0ea5e9';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([6, 3]);
+
+            if (shape.type === 'rect') {
+                 ctx.strokeRect(shape.x - shape.size / 2 - 5, shape.y - shape.size / 2 - 5, shape.size + 10, shape.size + 10);
+            } else if (shape.type === 'circle') {
+                ctx.beginPath();
+                ctx.arc(shape.x, shape.y, shape.radius + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            } else if (shape.type === 'triangle') {
+                const height = shape.size * (Math.sqrt(3) / 2);
+                const padding = 8;
+                ctx.beginPath();
+                ctx.moveTo(shape.x, shape.y - height / 2 - padding);
+                ctx.lineTo(shape.x - shape.size / 2 - padding, shape.y + height / 2 + padding);
+                ctx.lineTo(shape.x + shape.size / 2 + padding, shape.y + height / 2 + padding);
+                ctx.closePath();
+                ctx.stroke();
+            }
+            ctx.setLineDash([]);
+        }
+        
+        function drawAllShapes() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = '#f0f0f0';
+            ctx.lineWidth = 1;
+            for(let i = 0; i < canvas.width; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            for(let i = 0; i < canvas.height; i += 20) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvas.width, i);
+                ctx.stroke();
+            }
+
+            shapes.forEach(shape => {
+                if (shape.type === 'rect') drawRect(shape);
+                else if (shape.type === 'circle') drawCircle(shape);
+                else if (shape.type === 'triangle') drawTriangle(shape);
+            });
+            
+            if (selectedShape) {
+                drawSelectionBorder(selectedShape);
+            }
+        }
+
+        document.getElementById('add-rect').addEventListener('click', () => {
+            shapes.push({ type: 'rect', x: 100, y: 100, size: 80, color: getRandomColor() });
+            drawAllShapes();
+        });
+
+        document.getElementById('add-circle').addEventListener('click', () => {
+            shapes.push({ type: 'circle', x: 150, y: 150, radius: 40, color: getRandomColor() });
+            drawAllShapes();
+        });
+
+        document.getElementById('add-triangle').addEventListener('click', () => {
+            shapes.push({ type: 'triangle', x: 200, y: 200, size: 80, color: getRandomColor() });
+            drawAllShapes();
+        });
+
+        document.getElementById('delete-shape').addEventListener('click', () => {
+            if(selectedShape) {
+                shapes = shapes.filter(s => s !== selectedShape);
+                deselectShape();
+                drawAllShapes();
+            }
+        });
+        
+        document.getElementById('clear-canvas').addEventListener('click', () => {
+            if (confirm('정말 모든 도형을 지울까요?')) {
+                shapes = [];
+                deselectShape();
+                drawAllShapes();
+            }
+        });
+
+        function deselectShape() {
+            selectedShape = null;
+            controlsPanel.classList.add('translate-x-full', 'opacity-0', 'pointer-events-none');
+        }
+
+        function selectShape(shape) {
+            selectedShape = shape;
+            controlsPanel.classList.remove('translate-x-full', 'opacity-0', 'pointer-events-none');
+            
+            if (shape.type === 'rect' || shape.type === 'triangle') {
+                sizeSlider.value = shape.size;
+            } else if (shape.type === 'circle') {
+                sizeSlider.value = shape.radius * 2;
+            }
+            colorPicker.value = shape.color;
+        }
+
+        function isPointInShape(x, y, shape) {
+            if (shape.type === 'rect') {
+                return (x >= shape.x - shape.size / 2 && x <= shape.x + shape.size / 2 &&
+                        y >= shape.y - shape.size / 2 && y <= shape.y + shape.size / 2);
+            } else if (shape.type === 'circle') {
+                const distance = Math.sqrt((x - shape.x) ** 2 + (y - shape.y) ** 2);
+                return distance <= shape.radius;
+            } else if (shape.type === 'triangle') {
+                const height = shape.size * (Math.sqrt(3) / 2);
+                const p0 = { x: shape.x, y: shape.y - height / 2 };
+                const p1 = { x: shape.x - shape.size / 2, y: shape.y + height / 2 };
+                const p2 = { x: shape.x + shape.size / 2, y: shape.y + height / 2 };
+                
+                const d = (p1.y - p2.y) * (p0.x - p2.x) + (p2.x - p1.x) * (p0.y - p2.y);
+                const a = ((p1.y - p2.y) * (x - p2.x) + (p2.x - p1.x) * (y - p2.y)) / d;
+                const b = ((p2.y - p0.y) * (x - p2.x) + (p0.x - p2.x) * (y - p2.y)) / d;
+                const c = 1 - a - b;
+
+                return a >= 0 && a <= 1 && b >= 0 && b <= 1 && c >= 0 && c <= 1;
+            }
+            return false;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+
+            let clickedOnShape = false;
+            for (let i = shapes.length - 1; i >= 0; i--) {
+                if (isPointInShape(startX, startY, shapes[i])) {
+                    selectShape(shapes[i]);
+                    isDragging = true;
+                    clickedOnShape = true;
+                    shapes.push(shapes.splice(i, 1)[0]);
+                    break;
+                }
+            }
+            
+            if (!clickedOnShape) {
+                deselectShape();
+            }
+            canvas.classList.add('grabbing');
+            drawAllShapes();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDragging || !selectedShape) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const dx = mouseX - startX;
+            const dy = mouseY - startY;
+            
+            selectedShape.x += dx;
+            selectedShape.y += dy;
+            
+            startX = mouseX;
+            startY = mouseY;
+
+            drawAllShapes();
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDragging = false;
+            canvas.classList.remove('grabbing');
+        });
+
+        sizeSlider.addEventListener('input', (e) => {
+            if (!selectedShape) return;
+            const newSize = parseInt(e.target.value);
+            if (selectedShape.type === 'rect' || selectedShape.type === 'triangle') {
+                selectedShape.size = newSize;
+            } else if (selectedShape.type === 'circle') {
+                selectedShape.radius = newSize / 2;
+            }
+            drawAllShapes();
+        });
+
+        colorPicker.addEventListener('input', (e) => {
+            if (!selectedShape) return;
+            selectedShape.color = e.target.value;
+            drawAllShapes();
+        });
+
+        window.addEventListener('load', resizeCanvas);
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
